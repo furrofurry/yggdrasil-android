@@ -16,8 +16,10 @@ import android.view.LayoutInflater
 import android.view.View
 import android.widget.*
 import androidx.appcompat.widget.LinearLayoutCompat
+import androidx.core.content.edit
 import androidx.core.widget.doOnTextChanged
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import androidx.preference.PreferenceManager
 import org.json.JSONObject
 
 class SettingsActivity : AppCompatActivity() {
@@ -35,6 +37,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var socks5PasswordEntry: EditText
 
     private var publicKeyReset = false
+    private var isBindingProxySettings = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -63,11 +66,11 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
 
-        deviceNameEntry.setOnKeyListener { view, keyCode, event ->
+        deviceNameEntry.setOnKeyListener { _, keyCode, _ ->
             (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER)
         }
 
-        findViewById<View>(R.id.deviceNameTableRow).setOnKeyListener { view, keyCode, event ->
+        findViewById<View>(R.id.deviceNameTableRow).setOnKeyListener { _, keyCode, event ->
             Log.i("Key", keyCode.toString())
             if (event.action == KeyEvent.ACTION_DOWN) {
                 if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
@@ -121,8 +124,19 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         enableSocks5Proxy.setOnCheckedChangeListener { _, isChecked ->
-            saveSocks5Preferences()
+            if (isBindingProxySettings) {
+                return@setOnCheckedChangeListener
+            }
+            if (isChecked && !validateProxyEndpoint(showError = true)) {
+                isBindingProxySettings = true
+                enableSocks5Proxy.isChecked = false
+                isBindingProxySettings = false
+                updateSocks5AuthView(false)
+                saveSocks5Preferences()
+                return@setOnCheckedChangeListener
+            }
             updateSocks5AuthView(isChecked)
+            saveSocks5Preferences()
         }
 
         findViewById<View>(R.id.enableSocks5ProxyPanel).setOnClickListener {
@@ -130,25 +144,38 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         enableSocks5ProxyAuth.setOnCheckedChangeListener { _, _ ->
-            saveSocks5Preferences()
+            if (isBindingProxySettings) {
+                return@setOnCheckedChangeListener
+            }
             updateSocks5CredentialsState()
+            saveSocks5Preferences()
         }
 
         findViewById<View>(R.id.enableSocks5ProxyAuthPanel).setOnClickListener {
-            enableSocks5ProxyAuth.toggle()
+            if (enableSocks5ProxyAuth.isEnabled) {
+                enableSocks5ProxyAuth.toggle()
+            }
         }
 
         socks5HostEntry.doOnTextChanged { _, _, _, _ ->
-            saveSocks5Preferences()
+            if (!isBindingProxySettings) {
+                saveSocks5Preferences()
+            }
         }
         socks5PortEntry.doOnTextChanged { _, _, _, _ ->
-            saveSocks5Preferences()
+            if (!isBindingProxySettings) {
+                saveSocks5Preferences()
+            }
         }
         socks5UsernameEntry.doOnTextChanged { _, _, _, _ ->
-            saveSocks5Preferences()
+            if (!isBindingProxySettings) {
+                saveSocks5Preferences()
+            }
         }
         socks5PasswordEntry.doOnTextChanged { _, _, _, _ ->
-            saveSocks5Preferences()
+            if (!isBindingProxySettings) {
+                saveSocks5Preferences()
+            }
         }
 
         publicKeyLabel.setOnLongClickListener {
@@ -177,35 +204,60 @@ class SettingsActivity : AppCompatActivity() {
         }
         publicKeyLabel.text = key
 
-        val preferences = androidx.preference.PreferenceManager.getDefaultSharedPreferences(baseContext)
-        enableSocks5Proxy.isChecked = preferences.getBoolean(KEY_ENABLE_SOCKS5_PROXY, false)
-        socks5HostEntry.setText(preferences.getString(KEY_SOCKS5_PROXY_HOST, ""), TextView.BufferType.EDITABLE)
-        socks5PortEntry.setText(preferences.getString(KEY_SOCKS5_PROXY_PORT, ""), TextView.BufferType.EDITABLE)
-        enableSocks5ProxyAuth.isChecked = preferences.getBoolean(KEY_ENABLE_SOCKS5_PROXY_AUTH, false)
-        socks5UsernameEntry.setText(preferences.getString(KEY_SOCKS5_PROXY_USERNAME, ""), TextView.BufferType.EDITABLE)
-        socks5PasswordEntry.setText(preferences.getString(KEY_SOCKS5_PROXY_PASSWORD, ""), TextView.BufferType.EDITABLE)
-        updateSocks5AuthView()
+        loadSocks5Preferences()
+    }
+
+    private fun loadSocks5Preferences() {
+        val preferences = PreferenceManager.getDefaultSharedPreferences(baseContext)
+        isBindingProxySettings = true
+        try {
+            enableSocks5Proxy.isChecked = preferences.getBoolean(KEY_ENABLE_SOCKS5_PROXY, false)
+            socks5HostEntry.setText(preferences.getString(KEY_SOCKS5_PROXY_HOST, "") ?: "", TextView.BufferType.EDITABLE)
+            socks5PortEntry.setText(preferences.getString(KEY_SOCKS5_PROXY_PORT, "") ?: "", TextView.BufferType.EDITABLE)
+            enableSocks5ProxyAuth.isChecked = preferences.getBoolean(KEY_ENABLE_SOCKS5_PROXY_AUTH, false)
+            socks5UsernameEntry.setText(preferences.getString(KEY_SOCKS5_PROXY_USERNAME, "") ?: "", TextView.BufferType.EDITABLE)
+            socks5PasswordEntry.setText(preferences.getString(KEY_SOCKS5_PROXY_PASSWORD, "") ?: "", TextView.BufferType.EDITABLE)
+        } finally {
+            isBindingProxySettings = false
+        }
+        updateSocks5AuthView(enableSocks5Proxy.isChecked)
     }
 
     private fun saveSocks5Preferences() {
-        val preferences = androidx.preference.PreferenceManager.getDefaultSharedPreferences(baseContext)
-        preferences.edit().apply {
+        val preferences = PreferenceManager.getDefaultSharedPreferences(baseContext)
+        preferences.edit(commit = true) {
             putBoolean(KEY_ENABLE_SOCKS5_PROXY, enableSocks5Proxy.isChecked)
             putString(KEY_SOCKS5_PROXY_HOST, socks5HostEntry.text.toString().trim())
             putString(KEY_SOCKS5_PROXY_PORT, socks5PortEntry.text.toString().trim())
             putBoolean(KEY_ENABLE_SOCKS5_PROXY_AUTH, enableSocks5ProxyAuth.isChecked)
             putString(KEY_SOCKS5_PROXY_USERNAME, socks5UsernameEntry.text.toString())
             putString(KEY_SOCKS5_PROXY_PASSWORD, socks5PasswordEntry.text.toString())
-            apply()
         }
     }
 
+    private fun validateProxyEndpoint(showError: Boolean): Boolean {
+        val host = socks5HostEntry.text.toString().trim()
+        val port = socks5PortEntry.text.toString().trim().toIntOrNull()
+        if (host.isEmpty()) {
+            if (showError) {
+                Toast.makeText(this, getString(R.string.settings_socks5_error_host_required), Toast.LENGTH_SHORT).show()
+            }
+            return false
+        }
+        if (port == null || port <= 0 || port > 65535) {
+            if (showError) {
+                Toast.makeText(this, getString(R.string.settings_socks5_error_port_invalid), Toast.LENGTH_SHORT).show()
+            }
+            return false
+        }
+        return true
+    }
+
     private fun updateSocks5AuthView(isProxyEnabled: Boolean = enableSocks5Proxy.isChecked) {
-        val enabled = isProxyEnabled
-        socks5HostEntry.isEnabled = enabled
-        socks5PortEntry.isEnabled = enabled
-        enableSocks5ProxyAuth.isEnabled = enabled
-        findViewById<View>(R.id.enableSocks5ProxyAuthPanel).isEnabled = enabled
+        socks5HostEntry.isEnabled = isProxyEnabled
+        socks5PortEntry.isEnabled = isProxyEnabled
+        enableSocks5ProxyAuth.isEnabled = isProxyEnabled
+        findViewById<View>(R.id.enableSocks5ProxyAuthPanel).isEnabled = isProxyEnabled
         updateSocks5CredentialsState()
     }
 
@@ -220,6 +272,7 @@ class SettingsActivity : AppCompatActivity() {
         LocalBroadcastManager.getInstance(this).registerReceiver(
             receiver, IntentFilter(PacketTunnelProvider.STATE_INTENT)
         )
+        loadSocks5Preferences()
         (application as GlobalApplication).subscribe()
     }
 

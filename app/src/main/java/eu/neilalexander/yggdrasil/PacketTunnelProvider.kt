@@ -39,6 +39,8 @@ open class PacketTunnelProvider: VpnService() {
         const val ACTION_STOP = "eu.neilalexander.yggdrasil.PacketTunnelProvider.STOP"
         const val ACTION_TOGGLE = "eu.neilalexander.yggdrasil.PacketTunnelProvider.TOGGLE"
         const val ACTION_CONNECT = "eu.neilalexander.yggdrasil.PacketTunnelProvider.CONNECT"
+
+        const val EXTRA_PROXY_MESSAGE = "proxy_message"
     }
 
     private var yggdrasil = Yggdrasil()
@@ -136,7 +138,21 @@ open class PacketTunnelProvider: VpnService() {
 
         yggdrasil.startJSON(config.getJSONByteArray())
 
-        val proxyModeEnabled = socks5ProxyConfig != null && enableSocks5ProxyOnTunnel(socks5ProxyConfig)
+        var proxyMessage: String? = null
+        val proxyModeEnabled = if (preferences.getBoolean(KEY_ENABLE_SOCKS5_PROXY, false)) {
+            if (socks5ProxyConfig == null) {
+                proxyMessage = getString(R.string.proxy_error_invalid_configuration)
+                false
+            } else {
+                val enabled = enableSocks5ProxyOnTunnel(socks5ProxyConfig)
+                if (!enabled) {
+                    proxyMessage = getString(R.string.proxy_error_unsupported)
+                }
+                enabled
+            }
+        } else {
+            false
+        }
 
         val address = yggdrasil.addressString
         val builder = Builder()
@@ -217,6 +233,13 @@ open class PacketTunnelProvider: VpnService() {
         var intent = Intent(YGG_STATE_INTENT)
         intent.putExtra("state", STATE_ENABLED)
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+
+        if (!proxyMessage.isNullOrBlank()) {
+            intent = Intent(STATE_INTENT)
+            intent.putExtra("type", "proxy")
+            intent.putExtra(EXTRA_PROXY_MESSAGE, proxyMessage)
+            LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+        }
     }
 
     private fun getSocks5ProxyConfig(preferences: android.content.SharedPreferences): Socks5ProxyConfig? {
