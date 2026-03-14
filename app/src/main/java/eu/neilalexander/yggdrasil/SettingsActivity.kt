@@ -127,15 +127,7 @@ class SettingsActivity : AppCompatActivity() {
             if (isBindingProxySettings) {
                 return@setOnCheckedChangeListener
             }
-            if (isChecked && !validateProxyEndpoint(showError = true)) {
-                isBindingProxySettings = true
-                enableSocks5Proxy.isChecked = false
-                isBindingProxySettings = false
-                updateSocks5AuthView(false)
-                saveSocks5Preferences()
-                return@setOnCheckedChangeListener
-            }
-            updateSocks5AuthView(isChecked)
+            updateSocks5AuthView()
             saveSocks5Preferences()
         }
 
@@ -220,7 +212,7 @@ class SettingsActivity : AppCompatActivity() {
         } finally {
             isBindingProxySettings = false
         }
-        updateSocks5AuthView(enableSocks5Proxy.isChecked)
+        updateSocks5AuthView()
     }
 
     private fun saveSocks5Preferences() {
@@ -235,34 +227,19 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
-    private fun validateProxyEndpoint(showError: Boolean): Boolean {
-        val host = socks5HostEntry.text.toString().trim()
-        val port = socks5PortEntry.text.toString().trim().toIntOrNull()
-        if (host.isEmpty()) {
-            if (showError) {
-                Toast.makeText(this, getString(R.string.settings_socks5_error_host_required), Toast.LENGTH_SHORT).show()
-            }
-            return false
-        }
-        if (port == null || port <= 0 || port > 65535) {
-            if (showError) {
-                Toast.makeText(this, getString(R.string.settings_socks5_error_port_invalid), Toast.LENGTH_SHORT).show()
-            }
-            return false
-        }
-        return true
-    }
-
-    private fun updateSocks5AuthView(isProxyEnabled: Boolean = enableSocks5Proxy.isChecked) {
-        socks5HostEntry.isEnabled = isProxyEnabled
-        socks5PortEntry.isEnabled = isProxyEnabled
-        enableSocks5ProxyAuth.isEnabled = isProxyEnabled
-        findViewById<View>(R.id.enableSocks5ProxyAuthPanel).isEnabled = isProxyEnabled
+    private fun updateSocks5AuthView() {
+        // Keep endpoint fields editable even when proxy is disabled,
+        // so users can preconfigure before toggling on.
+        socks5HostEntry.isEnabled = true
+        socks5PortEntry.isEnabled = true
+        enableSocks5ProxyAuth.isEnabled = true
+        findViewById<View>(R.id.enableSocks5ProxyAuthPanel).isEnabled = true
         updateSocks5CredentialsState()
     }
 
     private fun updateSocks5CredentialsState() {
-        val authEnabled = enableSocks5Proxy.isChecked && enableSocks5ProxyAuth.isChecked
+        // Credentials depend only on auth toggle, not main proxy toggle.
+        val authEnabled = enableSocks5ProxyAuth.isChecked
         socks5UsernameEntry.isEnabled = authEnabled
         socks5PasswordEntry.isEnabled = authEnabled
     }

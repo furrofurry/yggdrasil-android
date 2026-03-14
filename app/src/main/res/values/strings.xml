@@ -101,8 +101,6 @@
     <string name="settings_password">Password</string>
     <string name="settings_optional">Optional</string>
     <string name="settings_socks5_proxy_hint">When enabled, the VPN will attempt to route all device traffic through the configured SOCKS5 endpoint inside the Yggdrasil network.</string>
-    <string name="settings_socks5_error_host_required">SOCKS5 IP is required.</string>
-    <string name="settings_socks5_error_port_invalid">SOCKS5 port must be between 1 and 65535.</string>
     <string name="proxy_error_invalid_configuration">SOCKS5 proxy is enabled but IP/port is invalid.</string>
     <string name="proxy_error_unsupported">SOCKS5 proxy mode is not supported by this Yggdrasil mobile library build.</string>
 </resources>
