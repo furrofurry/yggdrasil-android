@@ -123,7 +123,7 @@ class SettingsActivity : AppCompatActivity() {
             builder.show()
         }
 
-        enableSocks5Proxy.setOnCheckedChangeListener { _, isChecked ->
+        enableSocks5Proxy.setOnCheckedChangeListener { _, _ ->
             if (isBindingProxySettings) {
                 return@setOnCheckedChangeListener
             }
