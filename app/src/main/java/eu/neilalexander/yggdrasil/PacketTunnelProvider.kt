@@ -41,6 +41,7 @@ open class PacketTunnelProvider: VpnService() {
         const val ACTION_CONNECT = "eu.neilalexander.yggdrasil.PacketTunnelProvider.CONNECT"
 
         const val EXTRA_PROXY_MESSAGE = "proxy_message"
+        const val EXTRA_ERROR_MESSAGE = "error_message"
     }
 
     private var yggdrasil = Yggdrasil()
@@ -116,6 +117,10 @@ open class PacketTunnelProvider: VpnService() {
             startInternal()
         } catch (t: Throwable) {
             Log.e(TAG, "Failed to start VPN tunnel", t)
+            val intent = Intent(STATE_INTENT)
+            intent.putExtra("type", "error")
+            intent.putExtra(EXTRA_ERROR_MESSAGE, getString(R.string.vpn_start_error))
+            LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
             stop()
         }
     }
@@ -210,6 +215,13 @@ open class PacketTunnelProvider: VpnService() {
             }
         }
 
+        if (!proxyMessage.isNullOrBlank()) {
+            val proxyIntent = Intent(STATE_INTENT)
+            proxyIntent.putExtra("type", "proxy")
+            proxyIntent.putExtra(EXTRA_PROXY_MESSAGE, proxyMessage)
+            LocalBroadcastManager.getInstance(this).sendBroadcast(proxyIntent)
+        }
+
         parcel = builder.establish()
         val parcel = parcel
         if (parcel == null || !parcel.fileDescriptor.valid()) {
@@ -234,12 +246,6 @@ open class PacketTunnelProvider: VpnService() {
         intent.putExtra("state", STATE_ENABLED)
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
 
-        if (!proxyMessage.isNullOrBlank()) {
-            intent = Intent(STATE_INTENT)
-            intent.putExtra("type", "proxy")
-            intent.putExtra(EXTRA_PROXY_MESSAGE, proxyMessage)
-            LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
-        }
     }
 
     private fun getSocks5ProxyConfig(preferences: android.content.SharedPreferences): Socks5ProxyConfig? {

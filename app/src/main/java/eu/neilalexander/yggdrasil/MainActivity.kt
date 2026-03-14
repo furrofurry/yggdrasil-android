@@ -168,6 +168,12 @@ class MainActivity : AppCompatActivity() {
                         Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
                     }
                 }
+                "error" -> {
+                    val message = intent.getStringExtra(PacketTunnelProvider.EXTRA_ERROR_MESSAGE)
+                    if (!message.isNullOrBlank()) {
+                        Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
+                    }
+                }
                 "state" -> {
                     val peerState = JSONArray(intent.getStringExtra("peers") ?: "[]")
                     var count = 0
