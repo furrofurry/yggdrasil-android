@@ -103,5 +103,6 @@
     <string name="settings_socks5_proxy_hint">When enabled, the VPN will attempt to route all device traffic through the configured SOCKS5 endpoint inside the Yggdrasil network.</string>
     <string name="proxy_error_invalid_configuration">SOCKS5 proxy is enabled but IP/port is invalid.</string>
     <string name="proxy_error_unsupported">SOCKS5 proxy mode is not supported by this Yggdrasil mobile library build.</string>
+    <string name="proxy_error_engine_start">Unable to start SOCKS5 routing engine.</string>
     <string name="vpn_start_error">Failed to start Yggdrasil tunnel. Check proxy settings and try again.</string>
 </resources>

@@ -9,6 +9,8 @@ import android.system.OsConstants
 import android.util.Log
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.preference.PreferenceManager
+import engine.Engine
+import engine.Key
 import eu.neilalexander.yggdrasil.YggStateReceiver.Companion.YGG_STATE_INTENT
 import mobile.Yggdrasil
 import org.json.JSONArray
@@ -16,7 +18,6 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.net.Inet6Address
 import java.net.InetAddress
-import java.lang.reflect.Method
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
@@ -57,6 +58,7 @@ open class PacketTunnelProvider: VpnService() {
     private var readerStream: FileInputStream? = null
     private var writerStream: FileOutputStream? = null
     private var multicastLock: WifiManager.MulticastLock? = null
+    private var tun2SocksRunning = false
 
     override fun onCreate() {
         super.onCreate()
@@ -149,11 +151,7 @@ open class PacketTunnelProvider: VpnService() {
                 proxyMessage = getString(R.string.proxy_error_invalid_configuration)
                 false
             } else {
-                val enabled = enableSocks5ProxyOnTunnel(socks5ProxyConfig)
-                if (!enabled) {
-                    proxyMessage = getString(R.string.proxy_error_unsupported)
-                }
-                enabled
+                true
             }
         } else {
             false
@@ -232,11 +230,21 @@ open class PacketTunnelProvider: VpnService() {
         readerStream = FileInputStream(parcel.fileDescriptor)
         writerStream = FileOutputStream(parcel.fileDescriptor)
 
-        readerThread = thread {
-            reader()
-        }
-        writerThread = thread {
-            writer()
+        if (proxyModeEnabled && socks5ProxyConfig != null) {
+            tun2SocksRunning = startTun2Socks(parcel, socks5ProxyConfig)
+            if (!tun2SocksRunning) {
+                val errorIntent = Intent(STATE_INTENT)
+                errorIntent.putExtra("type", "error")
+                errorIntent.putExtra(EXTRA_ERROR_MESSAGE, getString(R.string.proxy_error_engine_start))
+                LocalBroadcastManager.getInstance(this).sendBroadcast(errorIntent)
+            }
+        } else {
+            readerThread = thread {
+                reader()
+            }
+            writerThread = thread {
+                writer()
+            }
         }
         updateThread = thread {
             updater()
@@ -281,42 +289,48 @@ open class PacketTunnelProvider: VpnService() {
         }
     }
 
-    private fun enableSocks5ProxyOnTunnel(proxy: Socks5ProxyConfig): Boolean {
-        val candidates = listOf(
-            listOf("setSocks5Proxy", String::class.java, Int::class.javaPrimitiveType!!, String::class.java, String::class.java),
-            listOf("setSocksProxy", String::class.java, Int::class.javaPrimitiveType!!, String::class.java, String::class.java),
-            listOf("configureSocks5Proxy", String::class.java, Int::class.javaPrimitiveType!!, String::class.java, String::class.java),
-            listOf("setSocks5Proxy", String::class.java, Int::class.javaPrimitiveType!!),
-            listOf("setSocksProxy", String::class.java, Int::class.javaPrimitiveType!!),
-            listOf("configureSocks5Proxy", String::class.java, Int::class.javaPrimitiveType!!)
-        )
-
-        for (candidate in candidates) {
-            val name = candidate[0] as String
-            val params = candidate.drop(1).toTypedArray() as Array<Class<*>>
-            try {
-                val method: Method = yggdrasil.javaClass.getMethod(name, *params)
-                when (params.size) {
-                    2 -> method.invoke(yggdrasil, proxy.host, proxy.port)
-                    4 -> method.invoke(yggdrasil, proxy.host, proxy.port, proxy.username ?: "", proxy.password ?: "")
-                }
-                Log.i(TAG, "SOCKS5 proxy mode enabled via mobile binding method $name")
-                return true
-            } catch (_: NoSuchMethodException) {
-                // Try next method signature
-            } catch (t: Throwable) {
-                Log.w(TAG, "Failed to enable SOCKS5 proxy mode via method $name", t)
-                return false
-            }
+    private fun startTun2Socks(parcel: ParcelFileDescriptor, proxy: Socks5ProxyConfig): Boolean {
+        val proxyUri = buildSocks5Uri(proxy)
+        return try {
+            val key = Key()
+            key.setMTU(yggdrasil.mtu.toLong())
+            key.setDevice("fd://${parcel.fd}")
+            key.setProxy(proxyUri)
+            key.setLogLevel("error")
+            Engine.insert(key)
+            Engine.start()
+            Log.i(TAG, "tun2socks started with proxy $proxyUri")
+            true
+        } catch (t: Throwable) {
+            Log.w(TAG, "Unable to start tun2socks engine", t)
+            false
         }
+    }
 
-        Log.w(TAG, "SOCKS5 proxy settings provided but mobile binding does not support proxy mode")
-        return false
+    private fun buildSocks5Uri(proxy: Socks5ProxyConfig): String {
+        val host = if (proxy.host.contains(':')) "[${proxy.host}]" else proxy.host
+        val auth = if (!proxy.username.isNullOrEmpty() && !proxy.password.isNullOrEmpty()) {
+            val username = java.net.URLEncoder.encode(proxy.username, "UTF-8")
+            val password = java.net.URLEncoder.encode(proxy.password, "UTF-8")
+            "$username:$password@"
+        } else {
+            ""
+        }
+        return "socks5://${auth}${host}:${proxy.port}"
     }
 
     private fun stop() {
         if (!started.compareAndSet(true, false)) {
             return
+        }
+
+        if (tun2SocksRunning) {
+            try {
+                Engine.stop()
+            } catch (t: Throwable) {
+                Log.w(TAG, "Failed to stop tun2socks engine", t)
+            }
+            tun2SocksRunning = false
         }
 
         yggdrasil.stop()
