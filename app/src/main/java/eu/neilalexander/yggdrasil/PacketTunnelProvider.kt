@@ -14,6 +14,8 @@ import mobile.Yggdrasil
 import org.json.JSONArray
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.net.Inet6Address
+import java.net.InetAddress
 import java.lang.reflect.Method
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
@@ -108,6 +110,16 @@ open class PacketTunnelProvider: VpnService() {
             return
         }
 
+        try {
+            startInternal()
+        } catch (t: Throwable) {
+            Log.e(TAG, "Failed to start VPN tunnel", t)
+            stop()
+        }
+    }
+
+    private fun startInternal() {
+
         val notification = createServiceNotification(this, State.Enabled)
         startForeground(SERVICE_NOTIFICATION_ID, notification)
 
@@ -142,6 +154,10 @@ open class PacketTunnelProvider: VpnService() {
             .setBlocking(true)
             .setMtu(yggdrasil.mtu.toInt())
             .setSession("Yggdrasil")
+
+        if (proxyModeEnabled) {
+            builder.allowFamily(OsConstants.AF_INET6)
+        }
         // On Android API 29+ apps can opt-in/out to using metered networks.
         // If we don't set metered status of VPN it is considered as metered.
         // If we set it to false, then it will inherit this status from underlying network.
@@ -166,7 +182,11 @@ open class PacketTunnelProvider: VpnService() {
 
         if (proxyModeEnabled) {
             builder.addRoute("0.0.0.0", 0)
-            builder.addRoute("::", 0)
+            try {
+                builder.addRoute("::", 0)
+            } catch (e: Exception) {
+                Log.w(TAG, "Unable to add IPv6 default route for SOCKS5 proxy mode", e)
+            }
             try {
                 builder.addDisallowedApplication(packageName)
             } catch (e: Exception) {
@@ -209,10 +229,27 @@ open class PacketTunnelProvider: VpnService() {
             Log.w(TAG, "SOCKS5 proxy is enabled but host/port is invalid, skipping proxy mode")
             return null
         }
+
+        val normalisedHost = normaliseProxyHost(host) ?: return null
         val useAuth = preferences.getBoolean(KEY_ENABLE_SOCKS5_PROXY_AUTH, false)
         val username = preferences.getString(KEY_SOCKS5_PROXY_USERNAME, "")?.takeIf { useAuth && it.isNotEmpty() }
         val password = preferences.getString(KEY_SOCKS5_PROXY_PASSWORD, "")?.takeIf { useAuth && it.isNotEmpty() }
-        return Socks5ProxyConfig(host, port, username, password)
+        return Socks5ProxyConfig(normalisedHost, port, username, password)
+    }
+
+    private fun normaliseProxyHost(host: String): String? {
+        val stripped = host.removePrefix("[").removeSuffix("]")
+        return try {
+            val parsed = InetAddress.getByName(stripped)
+            if (parsed is Inet6Address) {
+                parsed.hostAddress
+            } else {
+                stripped
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "SOCKS5 proxy host is not a valid IP address: $host", e)
+            null
+        }
     }
 
     private fun enableSocks5ProxyOnTunnel(proxy: Socks5ProxyConfig): Boolean {
@@ -238,8 +275,8 @@ open class PacketTunnelProvider: VpnService() {
                 return true
             } catch (_: NoSuchMethodException) {
                 // Try next method signature
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to enable SOCKS5 proxy mode via method $name", e)
+            } catch (t: Throwable) {
+                Log.w(TAG, "Failed to enable SOCKS5 proxy mode via method $name", t)
                 return false
             }
         }
