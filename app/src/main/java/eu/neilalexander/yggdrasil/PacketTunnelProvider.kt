@@ -125,6 +125,7 @@ open class PacketTunnelProvider: VpnService() {
             // and we can't use DNS with Yggdrasil addresses.
             .addRoute("2000::", 128)
             .allowFamily(OsConstants.AF_INET)
+            .allowFamily(OsConstants.AF_INET6)
             .allowBypass()
             .setBlocking(true)
             .setMtu(yggdrasil.mtu.toInt())
