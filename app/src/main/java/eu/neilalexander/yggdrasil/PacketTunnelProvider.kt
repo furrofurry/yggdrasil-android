@@ -14,21 +14,12 @@ import mobile.Yggdrasil
 import org.json.JSONArray
 import java.io.FileInputStream
 import java.io.FileOutputStream
-import java.net.Inet6Address
-import java.net.InetAddress
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
 
 private const val TAG = "PacketTunnelProvider"
 const val SERVICE_NOTIFICATION_ID = 1000
-
-private data class Socks5ProxyConfig(
-    val host: String,
-    val port: Int,
-    val username: String?,
-    val password: String?
-)
 
 open class PacketTunnelProvider: VpnService() {
     companion object {
@@ -38,9 +29,6 @@ open class PacketTunnelProvider: VpnService() {
         const val ACTION_STOP = "eu.neilalexander.yggdrasil.PacketTunnelProvider.STOP"
         const val ACTION_TOGGLE = "eu.neilalexander.yggdrasil.PacketTunnelProvider.TOGGLE"
         const val ACTION_CONNECT = "eu.neilalexander.yggdrasil.PacketTunnelProvider.CONNECT"
-
-        const val EXTRA_PROXY_MESSAGE = "proxy_message"
-        const val EXTRA_ERROR_MESSAGE = "error_message"
     }
 
     private var yggdrasil = Yggdrasil()
@@ -112,20 +100,6 @@ open class PacketTunnelProvider: VpnService() {
             return
         }
 
-        try {
-            startInternal()
-        } catch (t: Throwable) {
-            Log.e(TAG, "Failed to start VPN tunnel", t)
-            val intent = Intent(STATE_INTENT)
-            intent.putExtra("type", "error")
-            intent.putExtra(EXTRA_ERROR_MESSAGE, getString(R.string.vpn_start_error))
-            LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
-            stop()
-        }
-    }
-
-    private fun startInternal() {
-
         val notification = createServiceNotification(this, State.Enabled)
         startForeground(SERVICE_NOTIFICATION_ID, notification)
 
@@ -137,22 +111,7 @@ open class PacketTunnelProvider: VpnService() {
         }
 
         Log.d(TAG, config.getJSON().toString())
-        val preferences = PreferenceManager.getDefaultSharedPreferences(this.baseContext)
-        val socks5ProxyConfig = getSocks5ProxyConfig(preferences)
-
         yggdrasil.startJSON(config.getJSONByteArray())
-
-        var proxyMessage: String? = null
-        val proxyModeEnabled = if (preferences.getBoolean(KEY_ENABLE_SOCKS5_PROXY, false)) {
-            if (socks5ProxyConfig == null) {
-                proxyMessage = getString(R.string.proxy_error_invalid_configuration)
-            } else {
-                proxyMessage = getString(R.string.proxy_error_unsupported)
-            }
-            false
-        } else {
-            false
-        }
 
         val address = yggdrasil.addressString
         val builder = Builder()
@@ -166,14 +125,11 @@ open class PacketTunnelProvider: VpnService() {
             // and we can't use DNS with Yggdrasil addresses.
             .addRoute("2000::", 128)
             .allowFamily(OsConstants.AF_INET)
+            .allowFamily(OsConstants.AF_INET6)
             .allowBypass()
             .setBlocking(true)
             .setMtu(yggdrasil.mtu.toInt())
             .setSession("Yggdrasil")
-
-        if (proxyModeEnabled) {
-            builder.allowFamily(OsConstants.AF_INET6)
-        }
         // On Android API 29+ apps can opt-in/out to using metered networks.
         // If we don't set metered status of VPN it is considered as metered.
         // If we set it to false, then it will inherit this status from underlying network.
@@ -182,6 +138,7 @@ open class PacketTunnelProvider: VpnService() {
             builder.setMetered(false)
         }
 
+        val preferences = PreferenceManager.getDefaultSharedPreferences(this.baseContext)
         val serverString = preferences.getString(KEY_DNS_SERVERS, "")
         if (serverString!!.isNotEmpty()) {
             val servers = serverString.split(",")
@@ -194,27 +151,6 @@ open class PacketTunnelProvider: VpnService() {
         }
         if (preferences.getBoolean(KEY_ENABLE_CHROME_FIX, false)) {
             builder.addRoute("2001:4860:4860::8888", 128)
-        }
-
-        if (proxyModeEnabled) {
-            builder.addRoute("0.0.0.0", 0)
-            try {
-                builder.addRoute("::", 0)
-            } catch (e: Exception) {
-                Log.w(TAG, "Unable to add IPv6 default route for SOCKS5 proxy mode", e)
-            }
-            try {
-                builder.addDisallowedApplication(packageName)
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to disallow app package from VPN", e)
-            }
-        }
-
-        if (!proxyMessage.isNullOrBlank()) {
-            val proxyIntent = Intent(STATE_INTENT)
-            proxyIntent.putExtra("type", "proxy")
-            proxyIntent.putExtra(EXTRA_PROXY_MESSAGE, proxyMessage)
-            LocalBroadcastManager.getInstance(this).sendBroadcast(proxyIntent)
         }
 
         parcel = builder.establish()
@@ -240,42 +176,7 @@ open class PacketTunnelProvider: VpnService() {
         var intent = Intent(YGG_STATE_INTENT)
         intent.putExtra("state", STATE_ENABLED)
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
-
     }
-
-    private fun getSocks5ProxyConfig(preferences: android.content.SharedPreferences): Socks5ProxyConfig? {
-        if (!preferences.getBoolean(KEY_ENABLE_SOCKS5_PROXY, false)) {
-            return null
-        }
-        val host = preferences.getString(KEY_SOCKS5_PROXY_HOST, "")?.trim().orEmpty()
-        val port = preferences.getString(KEY_SOCKS5_PROXY_PORT, "")?.trim()?.toIntOrNull()
-        if (host.isEmpty() || port == null || port <= 0 || port > 65535) {
-            Log.w(TAG, "SOCKS5 proxy is enabled but host/port is invalid, skipping proxy mode")
-            return null
-        }
-
-        val normalisedHost = normaliseProxyHost(host) ?: return null
-        val useAuth = preferences.getBoolean(KEY_ENABLE_SOCKS5_PROXY_AUTH, false)
-        val username = preferences.getString(KEY_SOCKS5_PROXY_USERNAME, "")?.takeIf { useAuth && it.isNotEmpty() }
-        val password = preferences.getString(KEY_SOCKS5_PROXY_PASSWORD, "")?.takeIf { useAuth && it.isNotEmpty() }
-        return Socks5ProxyConfig(normalisedHost, port, username, password)
-    }
-
-    private fun normaliseProxyHost(host: String): String? {
-        val stripped = host.removePrefix("[").removeSuffix("]")
-        return try {
-            val parsed = InetAddress.getByName(stripped)
-            if (parsed is Inet6Address) {
-                parsed.hostAddress
-            } else {
-                stripped
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "SOCKS5 proxy host is not a valid IP address: $host", e)
-            null
-        }
-    }
-
 
     private fun stop() {
         if (!started.compareAndSet(true, false)) {
@@ -319,12 +220,7 @@ open class PacketTunnelProvider: VpnService() {
         intent.putExtra("state", STATE_DISABLED)
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            stopForeground(STOP_FOREGROUND_REMOVE)
-        } else {
-            @Suppress("DEPRECATION")
-            stopForeground(true)
-        }
+        stopForeground(true)
         stopSelf()
         multicastLock?.release()
     }

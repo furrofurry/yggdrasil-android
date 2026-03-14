@@ -162,18 +162,6 @@ class MainActivity : AppCompatActivity() {
     private val receiver: BroadcastReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent) {
             when (intent.getStringExtra("type")) {
-                "proxy" -> {
-                    val message = intent.getStringExtra(PacketTunnelProvider.EXTRA_PROXY_MESSAGE)
-                    if (!message.isNullOrBlank()) {
-                        Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
-                    }
-                }
-                "error" -> {
-                    val message = intent.getStringExtra(PacketTunnelProvider.EXTRA_ERROR_MESSAGE)
-                    if (!message.isNullOrBlank()) {
-                        Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
-                    }
-                }
                 "state" -> {
                     val peerState = JSONArray(intent.getStringExtra("peers") ?: "[]")
                     var count = 0

@@ -16,10 +16,8 @@ import android.view.LayoutInflater
 import android.view.View
 import android.widget.*
 import androidx.appcompat.widget.LinearLayoutCompat
-import androidx.core.content.edit
 import androidx.core.widget.doOnTextChanged
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
-import androidx.preference.PreferenceManager
 import org.json.JSONObject
 
 class SettingsActivity : AppCompatActivity() {
@@ -29,15 +27,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var deviceNameEntry: EditText
     private lateinit var publicKeyLabel: TextView
     private lateinit var resetConfigurationRow: LinearLayoutCompat
-    private lateinit var enableSocks5Proxy: Switch
-    private lateinit var socks5HostEntry: EditText
-    private lateinit var socks5PortEntry: EditText
-    private lateinit var enableSocks5ProxyAuth: Switch
-    private lateinit var socks5UsernameEntry: EditText
-    private lateinit var socks5PasswordEntry: EditText
-
     private var publicKeyReset = false
-    private var isBindingProxySettings = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -49,12 +39,6 @@ class SettingsActivity : AppCompatActivity() {
         deviceNameEntry = findViewById(R.id.deviceNameEntry)
         publicKeyLabel = findViewById(R.id.publicKeyLabel)
         resetConfigurationRow = findViewById(R.id.resetConfigurationRow)
-        enableSocks5Proxy = findViewById(R.id.enableSocks5Proxy)
-        socks5HostEntry = findViewById(R.id.socks5HostEntry)
-        socks5PortEntry = findViewById(R.id.socks5PortEntry)
-        enableSocks5ProxyAuth = findViewById(R.id.enableSocks5ProxyAuth)
-        socks5UsernameEntry = findViewById(R.id.socks5UsernameEntry)
-        socks5PasswordEntry = findViewById(R.id.socks5PasswordEntry)
 
         deviceNameEntry.doOnTextChanged { text, _, _, _ ->
             config.updateJSON { cfg ->
@@ -66,11 +50,11 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
 
-        deviceNameEntry.setOnKeyListener { _, keyCode, _ ->
+        deviceNameEntry.setOnKeyListener { view, keyCode, event ->
             (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER)
         }
 
-        findViewById<View>(R.id.deviceNameTableRow).setOnKeyListener { _, keyCode, event ->
+        findViewById<View>(R.id.deviceNameTableRow).setOnKeyListener { view, keyCode, event ->
             Log.i("Key", keyCode.toString())
             if (event.action == KeyEvent.ACTION_DOWN) {
                 if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
@@ -123,53 +107,6 @@ class SettingsActivity : AppCompatActivity() {
             builder.show()
         }
 
-        enableSocks5Proxy.setOnCheckedChangeListener { _, _ ->
-            if (isBindingProxySettings) {
-                return@setOnCheckedChangeListener
-            }
-            updateSocks5AuthView()
-            saveSocks5Preferences()
-        }
-
-        findViewById<View>(R.id.enableSocks5ProxyPanel).setOnClickListener {
-            enableSocks5Proxy.toggle()
-        }
-
-        enableSocks5ProxyAuth.setOnCheckedChangeListener { _, _ ->
-            if (isBindingProxySettings) {
-                return@setOnCheckedChangeListener
-            }
-            updateSocks5CredentialsState()
-            saveSocks5Preferences()
-        }
-
-        findViewById<View>(R.id.enableSocks5ProxyAuthPanel).setOnClickListener {
-            if (enableSocks5ProxyAuth.isEnabled) {
-                enableSocks5ProxyAuth.toggle()
-            }
-        }
-
-        socks5HostEntry.doOnTextChanged { _, _, _, _ ->
-            if (!isBindingProxySettings) {
-                saveSocks5Preferences()
-            }
-        }
-        socks5PortEntry.doOnTextChanged { _, _, _, _ ->
-            if (!isBindingProxySettings) {
-                saveSocks5Preferences()
-            }
-        }
-        socks5UsernameEntry.doOnTextChanged { _, _, _, _ ->
-            if (!isBindingProxySettings) {
-                saveSocks5Preferences()
-            }
-        }
-        socks5PasswordEntry.doOnTextChanged { _, _, _, _ ->
-            if (!isBindingProxySettings) {
-                saveSocks5Preferences()
-            }
-        }
-
         publicKeyLabel.setOnLongClickListener {
             val clipboard: ClipboardManager = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
             val clip = ClipData.newPlainText("public key", publicKeyLabel.text)
@@ -195,53 +132,6 @@ class SettingsActivity : AppCompatActivity() {
             key = key.substring(key.length / 2)
         }
         publicKeyLabel.text = key
-
-        loadSocks5Preferences()
-    }
-
-    private fun loadSocks5Preferences() {
-        val preferences = PreferenceManager.getDefaultSharedPreferences(baseContext)
-        isBindingProxySettings = true
-        try {
-            enableSocks5Proxy.isChecked = preferences.getBoolean(KEY_ENABLE_SOCKS5_PROXY, false)
-            socks5HostEntry.setText(preferences.getString(KEY_SOCKS5_PROXY_HOST, "") ?: "", TextView.BufferType.EDITABLE)
-            socks5PortEntry.setText(preferences.getString(KEY_SOCKS5_PROXY_PORT, "") ?: "", TextView.BufferType.EDITABLE)
-            enableSocks5ProxyAuth.isChecked = preferences.getBoolean(KEY_ENABLE_SOCKS5_PROXY_AUTH, false)
-            socks5UsernameEntry.setText(preferences.getString(KEY_SOCKS5_PROXY_USERNAME, "") ?: "", TextView.BufferType.EDITABLE)
-            socks5PasswordEntry.setText(preferences.getString(KEY_SOCKS5_PROXY_PASSWORD, "") ?: "", TextView.BufferType.EDITABLE)
-        } finally {
-            isBindingProxySettings = false
-        }
-        updateSocks5AuthView()
-    }
-
-    private fun saveSocks5Preferences() {
-        val preferences = PreferenceManager.getDefaultSharedPreferences(baseContext)
-        preferences.edit(commit = true) {
-            putBoolean(KEY_ENABLE_SOCKS5_PROXY, enableSocks5Proxy.isChecked)
-            putString(KEY_SOCKS5_PROXY_HOST, socks5HostEntry.text.toString().trim())
-            putString(KEY_SOCKS5_PROXY_PORT, socks5PortEntry.text.toString().trim())
-            putBoolean(KEY_ENABLE_SOCKS5_PROXY_AUTH, enableSocks5ProxyAuth.isChecked)
-            putString(KEY_SOCKS5_PROXY_USERNAME, socks5UsernameEntry.text.toString())
-            putString(KEY_SOCKS5_PROXY_PASSWORD, socks5PasswordEntry.text.toString())
-        }
-    }
-
-    private fun updateSocks5AuthView() {
-        // Keep endpoint fields editable even when proxy is disabled,
-        // so users can preconfigure before toggling on.
-        socks5HostEntry.isEnabled = true
-        socks5PortEntry.isEnabled = true
-        enableSocks5ProxyAuth.isEnabled = true
-        findViewById<View>(R.id.enableSocks5ProxyAuthPanel).isEnabled = true
-        updateSocks5CredentialsState()
-    }
-
-    private fun updateSocks5CredentialsState() {
-        // Credentials depend only on auth toggle, not main proxy toggle.
-        val authEnabled = enableSocks5ProxyAuth.isChecked
-        socks5UsernameEntry.isEnabled = authEnabled
-        socks5PasswordEntry.isEnabled = authEnabled
     }
 
     override fun onResume() {
@@ -249,7 +139,6 @@ class SettingsActivity : AppCompatActivity() {
         LocalBroadcastManager.getInstance(this).registerReceiver(
             receiver, IntentFilter(PacketTunnelProvider.STATE_INTENT)
         )
-        loadSocks5Preferences()
         (application as GlobalApplication).subscribe()
     }
 

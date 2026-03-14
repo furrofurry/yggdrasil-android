@@ -90,18 +90,4 @@
     <string name="set_keys">Set your own key</string>
     <string name="save">Save</string>
     <string name="no_browser_found_toast">No browser found to open the URL!</string>
-    <string name="settings_socks5_proxy">SOCKS5 Proxy</string>
-    <string name="settings_enable_socks5_proxy">Route traffic through SOCKS5 proxy</string>
-    <string name="settings_socks5_proxy_host">IP</string>
-    <string name="settings_socks5_proxy_host_hint">Yggdrasil IPv6</string>
-    <string name="settings_socks5_proxy_port">Port</string>
-    <string name="settings_socks5_proxy_port_hint">Proxy port</string>
-    <string name="settings_enable_socks5_proxy_auth">Use username/password authentication</string>
-    <string name="settings_username">Username</string>
-    <string name="settings_password">Password</string>
-    <string name="settings_optional">Optional</string>
-    <string name="settings_socks5_proxy_hint">When enabled, the VPN will attempt to route all device traffic through the configured SOCKS5 endpoint inside the Yggdrasil network.</string>
-    <string name="proxy_error_invalid_configuration">SOCKS5 proxy is enabled but IP/port is invalid.</string>
-    <string name="proxy_error_unsupported">SOCKS5 proxy mode is not supported by this Yggdrasil mobile library build.</string>
-    <string name="vpn_start_error">Failed to start Yggdrasil tunnel. Check proxy settings and try again.</string>
 </resources>
