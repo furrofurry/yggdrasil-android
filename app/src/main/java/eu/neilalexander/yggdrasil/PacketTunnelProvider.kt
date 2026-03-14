@@ -14,12 +14,20 @@ import mobile.Yggdrasil
 import org.json.JSONArray
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.lang.reflect.Method
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
 
 private const val TAG = "PacketTunnelProvider"
 const val SERVICE_NOTIFICATION_ID = 1000
+
+private data class Socks5ProxyConfig(
+    val host: String,
+    val port: Int,
+    val username: String?,
+    val password: String?
+)
 
 open class PacketTunnelProvider: VpnService() {
     companion object {
@@ -111,7 +119,12 @@ open class PacketTunnelProvider: VpnService() {
         }
 
         Log.d(TAG, config.getJSON().toString())
+        val preferences = PreferenceManager.getDefaultSharedPreferences(this.baseContext)
+        val socks5ProxyConfig = getSocks5ProxyConfig(preferences)
+
         yggdrasil.startJSON(config.getJSONByteArray())
+
+        val proxyModeEnabled = socks5ProxyConfig != null && enableSocks5ProxyOnTunnel(socks5ProxyConfig)
 
         val address = yggdrasil.addressString
         val builder = Builder()
@@ -137,7 +150,6 @@ open class PacketTunnelProvider: VpnService() {
             builder.setMetered(false)
         }
 
-        val preferences = PreferenceManager.getDefaultSharedPreferences(this.baseContext)
         val serverString = preferences.getString(KEY_DNS_SERVERS, "")
         if (serverString!!.isNotEmpty()) {
             val servers = serverString.split(",")
@@ -150,6 +162,16 @@ open class PacketTunnelProvider: VpnService() {
         }
         if (preferences.getBoolean(KEY_ENABLE_CHROME_FIX, false)) {
             builder.addRoute("2001:4860:4860::8888", 128)
+        }
+
+        if (proxyModeEnabled) {
+            builder.addRoute("0.0.0.0", 0)
+            builder.addRoute("::", 0)
+            try {
+                builder.addDisallowedApplication(packageName)
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to disallow app package from VPN", e)
+            }
         }
 
         parcel = builder.establish()
@@ -175,6 +197,55 @@ open class PacketTunnelProvider: VpnService() {
         var intent = Intent(YGG_STATE_INTENT)
         intent.putExtra("state", STATE_ENABLED)
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+    }
+
+    private fun getSocks5ProxyConfig(preferences: android.content.SharedPreferences): Socks5ProxyConfig? {
+        if (!preferences.getBoolean(KEY_ENABLE_SOCKS5_PROXY, false)) {
+            return null
+        }
+        val host = preferences.getString(KEY_SOCKS5_PROXY_HOST, "")?.trim().orEmpty()
+        val port = preferences.getString(KEY_SOCKS5_PROXY_PORT, "")?.trim()?.toIntOrNull()
+        if (host.isEmpty() || port == null || port <= 0 || port > 65535) {
+            Log.w(TAG, "SOCKS5 proxy is enabled but host/port is invalid, skipping proxy mode")
+            return null
+        }
+        val useAuth = preferences.getBoolean(KEY_ENABLE_SOCKS5_PROXY_AUTH, false)
+        val username = preferences.getString(KEY_SOCKS5_PROXY_USERNAME, "")?.takeIf { useAuth && it.isNotEmpty() }
+        val password = preferences.getString(KEY_SOCKS5_PROXY_PASSWORD, "")?.takeIf { useAuth && it.isNotEmpty() }
+        return Socks5ProxyConfig(host, port, username, password)
+    }
+
+    private fun enableSocks5ProxyOnTunnel(proxy: Socks5ProxyConfig): Boolean {
+        val candidates = listOf(
+            listOf("setSocks5Proxy", String::class.java, Int::class.javaPrimitiveType!!, String::class.java, String::class.java),
+            listOf("setSocksProxy", String::class.java, Int::class.javaPrimitiveType!!, String::class.java, String::class.java),
+            listOf("configureSocks5Proxy", String::class.java, Int::class.javaPrimitiveType!!, String::class.java, String::class.java),
+            listOf("setSocks5Proxy", String::class.java, Int::class.javaPrimitiveType!!),
+            listOf("setSocksProxy", String::class.java, Int::class.javaPrimitiveType!!),
+            listOf("configureSocks5Proxy", String::class.java, Int::class.javaPrimitiveType!!)
+        )
+
+        for (candidate in candidates) {
+            val name = candidate[0] as String
+            val params = candidate.drop(1).toTypedArray() as Array<Class<*>>
+            try {
+                val method: Method = yggdrasil.javaClass.getMethod(name, *params)
+                when (params.size) {
+                    2 -> method.invoke(yggdrasil, proxy.host, proxy.port)
+                    4 -> method.invoke(yggdrasil, proxy.host, proxy.port, proxy.username ?: "", proxy.password ?: "")
+                }
+                Log.i(TAG, "SOCKS5 proxy mode enabled via mobile binding method $name")
+                return true
+            } catch (_: NoSuchMethodException) {
+                // Try next method signature
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to enable SOCKS5 proxy mode via method $name", e)
+                return false
+            }
+        }
+
+        Log.w(TAG, "SOCKS5 proxy settings provided but mobile binding does not support proxy mode")
+        return false
     }
 
     private fun stop() {

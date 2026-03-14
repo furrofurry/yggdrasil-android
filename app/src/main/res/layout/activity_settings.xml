@@ -283,6 +283,182 @@
                         android:textAppearance="@style/TextAppearance.AppCompat.Small"
                         android:textSize="12sp" />
 
+                    <Space
+                        android:layout_width="match_parent"
+                        android:layout_height="16px" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="16pt"
+                        android:layout_marginLeft="16pt"
+                        android:layout_marginEnd="8pt"
+                        android:layout_marginRight="8pt"
+                        android:layout_marginBottom="2pt"
+                        android:alpha="0.7"
+                        android:paddingRight="8pt"
+                        android:text="@string/settings_socks5_proxy"
+                        android:textAllCaps="true"
+                        android:textAppearance="@style/TextAppearance.AppCompat.Small"
+                        android:textSize="12sp" />
+
+                    <TableLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8pt"
+                        android:layout_marginLeft="8pt"
+                        android:layout_marginEnd="8pt"
+                        android:layout_marginRight="8pt"
+                        android:background="@drawable/rounded"
+                        android:divider="#46878787"
+                        android:dividerPadding="4pt"
+                        android:paddingLeft="4pt"
+                        android:paddingTop="2pt"
+                        android:paddingRight="4pt"
+                        android:paddingBottom="2pt"
+                        android:showDividers="middle">
+
+                        <TableRow
+                            android:id="@+id/enableSocks5ProxyPanel"
+                            style="@style/SelectableItemStyle">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/settings_enable_socks5_proxy" />
+
+                            <Space
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1" />
+
+                            <Switch
+                                android:id="@+id/enableSocks5Proxy"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content" />
+                        </TableRow>
+
+                        <TableRow>
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/settings_socks5_proxy_host" />
+
+                            <EditText
+                                android:id="@+id/socks5HostEntry"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:background="@null"
+                                android:ems="10"
+                                android:hint="@string/settings_socks5_proxy_host_hint"
+                                android:inputType="text"
+                                android:padding="0pt"
+                                android:textAlignment="textEnd"
+                                android:textSize="14sp" />
+                        </TableRow>
+
+                        <TableRow>
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/settings_socks5_proxy_port" />
+
+                            <EditText
+                                android:id="@+id/socks5PortEntry"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:background="@null"
+                                android:ems="10"
+                                android:hint="@string/settings_socks5_proxy_port_hint"
+                                android:inputType="number"
+                                android:padding="0pt"
+                                android:textAlignment="textEnd"
+                                android:textSize="14sp" />
+                        </TableRow>
+
+                        <TableRow
+                            android:id="@+id/enableSocks5ProxyAuthPanel"
+                            style="@style/SelectableItemStyle">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/settings_enable_socks5_proxy_auth" />
+
+                            <Space
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1" />
+
+                            <Switch
+                                android:id="@+id/enableSocks5ProxyAuth"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content" />
+                        </TableRow>
+
+                        <TableRow>
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/settings_username" />
+
+                            <EditText
+                                android:id="@+id/socks5UsernameEntry"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:background="@null"
+                                android:ems="10"
+                                android:hint="@string/settings_optional"
+                                android:inputType="text"
+                                android:padding="0pt"
+                                android:textAlignment="textEnd"
+                                android:textSize="14sp" />
+                        </TableRow>
+
+                        <TableRow>
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/settings_password" />
+
+                            <EditText
+                                android:id="@+id/socks5PasswordEntry"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:background="@null"
+                                android:ems="10"
+                                android:hint="@string/settings_optional"
+                                android:inputType="textPassword"
+                                android:padding="0pt"
+                                android:textAlignment="textEnd"
+                                android:textSize="14sp" />
+                        </TableRow>
+                    </TableLayout>
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="16pt"
+                        android:layout_marginLeft="16pt"
+                        android:layout_marginTop="4pt"
+                        android:layout_marginBottom="4pt"
+                        android:layout_marginEnd="8pt"
+                        android:layout_marginRight="8pt"
+                        android:alpha="0.7"
+                        android:paddingRight="8pt"
+                        android:text="@string/settings_socks5_proxy_hint"
+                        android:textAllCaps="false"
+                        android:textAppearance="@style/TextAppearance.AppCompat.Small"
+                        android:textSize="12sp" />
+
                 </LinearLayout>
             </ScrollView>
 

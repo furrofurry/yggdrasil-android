@@ -27,6 +27,13 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var deviceNameEntry: EditText
     private lateinit var publicKeyLabel: TextView
     private lateinit var resetConfigurationRow: LinearLayoutCompat
+    private lateinit var enableSocks5Proxy: Switch
+    private lateinit var socks5HostEntry: EditText
+    private lateinit var socks5PortEntry: EditText
+    private lateinit var enableSocks5ProxyAuth: Switch
+    private lateinit var socks5UsernameEntry: EditText
+    private lateinit var socks5PasswordEntry: EditText
+
     private var publicKeyReset = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -39,6 +46,12 @@ class SettingsActivity : AppCompatActivity() {
         deviceNameEntry = findViewById(R.id.deviceNameEntry)
         publicKeyLabel = findViewById(R.id.publicKeyLabel)
         resetConfigurationRow = findViewById(R.id.resetConfigurationRow)
+        enableSocks5Proxy = findViewById(R.id.enableSocks5Proxy)
+        socks5HostEntry = findViewById(R.id.socks5HostEntry)
+        socks5PortEntry = findViewById(R.id.socks5PortEntry)
+        enableSocks5ProxyAuth = findViewById(R.id.enableSocks5ProxyAuth)
+        socks5UsernameEntry = findViewById(R.id.socks5UsernameEntry)
+        socks5PasswordEntry = findViewById(R.id.socks5PasswordEntry)
 
         deviceNameEntry.doOnTextChanged { text, _, _, _ ->
             config.updateJSON { cfg ->
@@ -107,6 +120,37 @@ class SettingsActivity : AppCompatActivity() {
             builder.show()
         }
 
+        enableSocks5Proxy.setOnCheckedChangeListener { _, isChecked ->
+            saveSocks5Preferences()
+            updateSocks5AuthView(isChecked)
+        }
+
+        findViewById<View>(R.id.enableSocks5ProxyPanel).setOnClickListener {
+            enableSocks5Proxy.toggle()
+        }
+
+        enableSocks5ProxyAuth.setOnCheckedChangeListener { _, _ ->
+            saveSocks5Preferences()
+            updateSocks5CredentialsState()
+        }
+
+        findViewById<View>(R.id.enableSocks5ProxyAuthPanel).setOnClickListener {
+            enableSocks5ProxyAuth.toggle()
+        }
+
+        socks5HostEntry.doOnTextChanged { _, _, _, _ ->
+            saveSocks5Preferences()
+        }
+        socks5PortEntry.doOnTextChanged { _, _, _, _ ->
+            saveSocks5Preferences()
+        }
+        socks5UsernameEntry.doOnTextChanged { _, _, _, _ ->
+            saveSocks5Preferences()
+        }
+        socks5PasswordEntry.doOnTextChanged { _, _, _, _ ->
+            saveSocks5Preferences()
+        }
+
         publicKeyLabel.setOnLongClickListener {
             val clipboard: ClipboardManager = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
             val clip = ClipData.newPlainText("public key", publicKeyLabel.text)
@@ -132,6 +176,43 @@ class SettingsActivity : AppCompatActivity() {
             key = key.substring(key.length / 2)
         }
         publicKeyLabel.text = key
+
+        val preferences = androidx.preference.PreferenceManager.getDefaultSharedPreferences(baseContext)
+        enableSocks5Proxy.isChecked = preferences.getBoolean(KEY_ENABLE_SOCKS5_PROXY, false)
+        socks5HostEntry.setText(preferences.getString(KEY_SOCKS5_PROXY_HOST, ""), TextView.BufferType.EDITABLE)
+        socks5PortEntry.setText(preferences.getString(KEY_SOCKS5_PROXY_PORT, ""), TextView.BufferType.EDITABLE)
+        enableSocks5ProxyAuth.isChecked = preferences.getBoolean(KEY_ENABLE_SOCKS5_PROXY_AUTH, false)
+        socks5UsernameEntry.setText(preferences.getString(KEY_SOCKS5_PROXY_USERNAME, ""), TextView.BufferType.EDITABLE)
+        socks5PasswordEntry.setText(preferences.getString(KEY_SOCKS5_PROXY_PASSWORD, ""), TextView.BufferType.EDITABLE)
+        updateSocks5AuthView()
+    }
+
+    private fun saveSocks5Preferences() {
+        val preferences = androidx.preference.PreferenceManager.getDefaultSharedPreferences(baseContext)
+        preferences.edit().apply {
+            putBoolean(KEY_ENABLE_SOCKS5_PROXY, enableSocks5Proxy.isChecked)
+            putString(KEY_SOCKS5_PROXY_HOST, socks5HostEntry.text.toString().trim())
+            putString(KEY_SOCKS5_PROXY_PORT, socks5PortEntry.text.toString().trim())
+            putBoolean(KEY_ENABLE_SOCKS5_PROXY_AUTH, enableSocks5ProxyAuth.isChecked)
+            putString(KEY_SOCKS5_PROXY_USERNAME, socks5UsernameEntry.text.toString())
+            putString(KEY_SOCKS5_PROXY_PASSWORD, socks5PasswordEntry.text.toString())
+            apply()
+        }
+    }
+
+    private fun updateSocks5AuthView(isProxyEnabled: Boolean = enableSocks5Proxy.isChecked) {
+        val enabled = isProxyEnabled
+        socks5HostEntry.isEnabled = enabled
+        socks5PortEntry.isEnabled = enabled
+        enableSocks5ProxyAuth.isEnabled = enabled
+        findViewById<View>(R.id.enableSocks5ProxyAuthPanel).isEnabled = enabled
+        updateSocks5CredentialsState()
+    }
+
+    private fun updateSocks5CredentialsState() {
+        val authEnabled = enableSocks5Proxy.isChecked && enableSocks5ProxyAuth.isChecked
+        socks5UsernameEntry.isEnabled = authEnabled
+        socks5PasswordEntry.isEnabled = authEnabled
     }
 
     override fun onResume() {
